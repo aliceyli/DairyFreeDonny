@@ -1,3 +1,4 @@
+// keeps track of actor properties
 class Actor {
   constructor({ imgSrc, initialx, initialy, width, height, ctx, speed }) {
     this.img = new Image();
@@ -9,22 +10,11 @@ class Actor {
     this.ctx = ctx;
     this.speed = speed;
   }
-
-  draw() {
-    // When this script gets executed, the image starts loading.
-    // You need to be sure to use the load event so you don't draw the image to the canvas before it's ready
-    // this seems to not be an issue with the requestanimationfrme loop though, so not sure if i need to come back to this???
-    // this.img.addEventListener("load", (e) => {
-    if (this.x > this.x * -1) {
-      // is this necessary to stop drawing once its off screen?
-      this.ctx.drawImage(this.img, this.x, this.y, this.width, this.height);
-    }
-    // });
-  }
 }
 
+// adds event listeners to player
 class Donny extends Actor {
-  constructor({ imgSrc, initialx, initialy, width, height, ctx, speed = 3 }) {
+  constructor({ imgSrc, initialx, initialy, width, height, ctx, speed = 4 }) {
     super({ imgSrc, initialx, initialy, width, height, ctx, speed });
     this.keys = {};
 
@@ -57,10 +47,12 @@ class Donny extends Actor {
       this.x -= this.speed;
     }
 
-    this.draw();
+    // this.draw();
   }
 }
 
+// adds food specific properties to actor
+// different update behavior to player
 class Food extends Actor {
   constructor({
     imgSrc,
@@ -69,7 +61,7 @@ class Food extends Actor {
     width,
     height,
     ctx,
-    speed = 2,
+    speed = -2,
     releaseTime = 0,
     points = 1,
   }) {
@@ -86,7 +78,7 @@ class Food extends Actor {
       this.y = -100;
     } else {
       this.x = this.x + this.speed;
-      this.draw();
+      // this.draw();
     }
   }
 
@@ -123,120 +115,137 @@ class Food extends Actor {
   // }
 }
 
+// keeps track of actors, score and time
+// draws actors and score
 class Level {
-  constructor(ctx) {
+  constructor({ player, duration, obstacleNum }) {
     this.startTime = Date.now();
+    this.duration = duration;
     this.score = 0;
-    this.ctx = ctx;
+    this.ctx;
+    this.player = player;
+    this.foods = [];
+    this.obstacleNum = obstacleNum;
   }
 
   get timeElapsed() {
     return Date.now() - this.startTime;
   }
 
-  draw() {
+  addFood(food) {
+    this.foods.push(food);
+  }
+
+  drawScore() {
     this.ctx.font = "24px serif";
     this.ctx.fillText(`Score: ${this.score}`, 10, 50);
   }
 
-  updateScore(points) {
-    this.score += points;
+  updateScore() {
+    for (let food of this.foods) {
+      if (food.isColliding(this.player)) {
+        this.score += food.points;
+      }
+    }
+  }
+
+  drawAllActors(t) {
+    this.player.update();
+    this.ctx.drawImage(
+      this.player.img,
+      this.player.x,
+      this.player.y,
+      this.player.width,
+      this.player.height
+    );
+
+    for (let food of this.foods) {
+      if (t > food.releaseTime) {
+        food.update();
+        this.ctx.drawImage(food.img, food.x, food.y, food.width, food.height);
+      }
+    }
   }
 }
 
-const canvas = document.getElementById("myCanvas");
-const ctx = canvas.getContext("2d");
-
-let player = new Donny({
-  imgSrc: "images/donny.png",
-  initialx: 50,
-  initialy: canvas.height / 2 - 40,
-  width: 70,
-  height: 80,
-  ctx: ctx,
-});
-
-let apple = new Food({
-  imgSrc: "images/apple.png",
-  initialx: canvas.width,
-  initialy: 50,
-  width: 50,
-  height: 60,
-  ctx: ctx,
-  speed: -2,
-  releaseTime: 2000,
-});
-
-let milk = new Food({
-  imgSrc: "images/milk.png",
-  initialx: canvas.width,
-  initialy: 150,
-  width: 50,
-  height: 60,
-  ctx: ctx,
-  speed: -2,
-  releaseTime: 4000,
-  points: -2,
-});
-
-let egg = new Food({
-  imgSrc: "images/egg.png",
-  initialx: canvas.width,
-  initialy: 250,
-  width: 50,
-  height: 60,
-  ctx: ctx,
-  speed: -2,
-  releaseTime: 5000,
-});
-
-let pizza = new Food({
-  imgSrc: "images/pizza.png",
-  initialx: canvas.width,
-  initialy: 340,
-  width: 50,
-  height: 60,
-  ctx: ctx,
-  speed: -2,
-  releaseTime: 8000,
-  points: -1,
-});
-
-// Animation loop
-function animate(t) {
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-  level1.draw();
-
-  player.update();
-
-  if (t > apple.releaseTime) {
-    apple.update();
-    if (apple.isColliding(player)) {
-      level1.updateScore(apple.points);
-    }
-  }
-  if (t > milk.releaseTime) {
-    milk.update();
-    if (milk.isColliding(player)) {
-      level1.updateScore(milk.points);
-    }
-  }
-  if (t > egg.releaseTime) {
-    egg.update();
-    if (egg.isColliding(player)) {
-      level1.updateScore(egg.points);
-    }
-  }
-  if (t > pizza.releaseTime) {
-    pizza.update();
-    if (pizza.isColliding(player)) {
-      level1.updateScore(pizza.points);
-    }
+// create game and keeps track of levels
+class Game {
+  constructor(canvasId) {
+    this.canvas = document.getElementById(canvasId);
+    this.ctx = this.canvas.getContext("2d");
+    this.levels = [];
   }
 
-  requestAnimationFrame(animate);
+  addLevel(level) {
+    level.ctx = this.ctx;
+    this.levels.push(level);
+  }
 }
 
-const level1 = new Level(ctx);
-animate(level1.timeElapsed);
+const generateFood = (game, level) => {
+  const FOODS = [
+    { imgSrc: "images/apple.png" },
+    { imgSrc: "images/milk.png" },
+    { imgSrc: "images/egg.png" },
+    { imgSrc: "images/pizza.png" },
+  ];
+
+  const foodWidth = 50;
+  const foodHeight = 60;
+
+  const getRandomNumber = (n) => {
+    return Math.floor(Math.random() * n);
+  };
+
+  for (let i = 0; i < level.obstacleNum; i++) {
+    const randFoodIdx = getRandomNumber(FOODS.length);
+    const randInitialY = getRandomNumber(game.canvas.height - foodHeight); // to-do: add start
+    const randReleaseTime = getRandomNumber(level.duration); // to-do: add start as 2000 (2 seconds)
+
+    const food = new Food({
+      ...FOODS[randFoodIdx],
+      initialx: game.canvas.width,
+      initialy: randInitialY,
+      width: foodWidth,
+      height: foodHeight,
+      releaseTime: randReleaseTime,
+    });
+
+    level.addFood(food);
+  }
+};
+
+const main = () => {
+  const game = new Game("myCanvas");
+
+  const player = new Donny({
+    imgSrc: "images/donny.png",
+    initialx: 50,
+    initialy: game.canvas.height / 2 - 40,
+    width: 70,
+    height: 80,
+  });
+
+  const level1 = new Level({
+    player,
+    duration: 30000,
+    obstacleNum: 30,
+  });
+  game.addLevel(level1);
+
+  generateFood(game, level1);
+
+  // Animation loop
+  function animate(t) {
+    level1.ctx.clearRect(0, 0, game.canvas.width, game.canvas.height);
+    level1.drawScore();
+    level1.drawAllActors(t);
+    level1.updateScore();
+
+    requestAnimationFrame(animate);
+  }
+
+  animate(level1.timeElapsed);
+};
+
+main();
