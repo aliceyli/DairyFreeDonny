@@ -1,5 +1,5 @@
 class Actor {
-  constructor({ imgSrc, initialx, initialy, width, height, ctx, speed = 2 }) {
+  constructor({ imgSrc, initialx, initialy, width, height, ctx, speed }) {
     this.img = new Image();
     this.img.src = imgSrc;
     this.x = initialx;
@@ -24,7 +24,7 @@ class Actor {
 }
 
 class Donny extends Actor {
-  constructor({ imgSrc, initialx, initialy, width, height, ctx, speed }) {
+  constructor({ imgSrc, initialx, initialy, width, height, ctx, speed = 3 }) {
     super({ imgSrc, initialx, initialy, width, height, ctx, speed });
     this.keys = {};
 
@@ -69,7 +69,7 @@ class Food extends Actor {
     width,
     height,
     ctx,
-    speed,
+    speed = 2,
     releaseTime = 0,
     points = 1,
   }) {
@@ -90,14 +90,29 @@ class Food extends Actor {
     }
   }
 
-  collides(donny) {
-    this.collided =
-      (donny.x >= this.x && donny.x <= this.x + this.width) ||
-      (donny.x + donny.width >= this.x &&
-        donny.x + donny.width <= this.x + this.width) ||
-      (donny.x <= this.x && donny.x + donny.width >= this.x + this.width);
+  isColliding(donny) {
+    const thisX2 = this.x + this.width;
+    const donnyX2 = donny.x + donny.width;
+    const thisY2 = this.y + this.height;
+    const donnyY2 = donny.y + donny.height;
 
-    return this.collided;
+    const xColliding =
+      (donny.x >= this.x && donny.x <= thisX2) ||
+      (donnyX2 >= this.x && donnyX2 <= thisX2) ||
+      (donny.x <= this.x && donnyX2 >= thisX2);
+    const yColliding =
+      (donny.y >= this.y && donny.y <= thisY2) ||
+      (donnyY2 >= this.y && donnyY2 < thisY2) ||
+      (donny.y <= this.y && donnyY2 >= thisY2);
+
+    const isColliding = xColliding && yColliding;
+
+    // set collided
+    if (this.collided === false && isColliding) {
+      this.collided = true;
+    }
+
+    return isColliding;
   }
 
   // TO-DO: explore when you might want to use this and translate like in https://developer.mozilla.org/en-US/docs/Web/API/Canvas_API/Tutorial/Basic_animations
@@ -197,25 +212,25 @@ function animate(t) {
 
   if (t > apple.releaseTime) {
     apple.update();
-    if (apple.collides(player)) {
+    if (apple.isColliding(player)) {
       level1.updateScore(apple.points);
     }
   }
   if (t > milk.releaseTime) {
     milk.update();
-    if (milk.collides(player)) {
+    if (milk.isColliding(player)) {
       level1.updateScore(milk.points);
     }
   }
   if (t > egg.releaseTime) {
     egg.update();
-    if (egg.collides(player)) {
+    if (egg.isColliding(player)) {
       level1.updateScore(egg.points);
     }
   }
   if (t > pizza.releaseTime) {
     pizza.update();
-    if (pizza.collides(player)) {
+    if (pizza.isColliding(player)) {
       level1.updateScore(pizza.points);
     }
   }
