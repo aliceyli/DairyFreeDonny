@@ -284,14 +284,20 @@ class Game {
     this.ctx.fillText(text, this.canvas.width / 2, 200);
   }
 
+  drawCTA(text) {
+    this.ctx.font = "18px sans-serif";
+    this.ctx.textAlign = "center";
+    this.ctx.fillText(text, this.canvas.width / 2, 250);
+  }
+
   drawStartScreen() {
     this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
 
     this.drawTitle("Dairy Free Donny");
-    this.drawSubtitle("Click to start");
+    this.drawCTA("Click to start");
   }
 
-  drawMenu() {
+  drawLevelScreen() {
     this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
     const formatArray = (arr) => {
       const copiedArr = [...arr];
@@ -308,6 +314,7 @@ class Game {
     const allergyString = formatArray(this.currentLevel.allergiesToAvoid);
     this.drawTitle(`Level ${this.currentLevelIdx + 1}`);
     this.drawSubtitle(`Donny can't eat ${allergyString}`);
+    this.drawCTA("Click to continue");
   }
 
   drawGameOverScreen() {
@@ -362,7 +369,7 @@ const main = () => {
     } else if (game.finished) {
       game.drawWinScreen();
     } else if (game.showLevelScreen) {
-      game.drawMenu();
+      game.drawLevelScreen();
     } else if (game.currentLevel.completed) {
       game.showLevelScreen = true;
       game.nextLevel();
