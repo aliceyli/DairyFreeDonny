@@ -29,6 +29,8 @@ class Donny extends Actor {
     this.hungerLevel = 5; // TO-DO: decrease hunger based on time
     this.hungerMin = 0;
     this.fullMax = 10;
+    this.hungerInterval = 3000;
+    this.lastHungerDecrease = Date.now();
 
     this.keys = {};
 
@@ -84,8 +86,18 @@ class Donny extends Actor {
     );
   }
 
+  decreaseHunger() {
+    // hunger level goes down 1 every hungerInterval
+    if (Date.now() - this.lastHungerDecrease > this.hungerInterval) {
+      this.hungerLevel--;
+      this.lastHungerDecrease = Date.now();
+    }
+  }
+
   checkHunger() {
-    return this.hungerLevel > this.fullMax || this.hungerLevel < this.hungerMin;
+    return (
+      this.hungerLevel >= this.fullMax || this.hungerLevel <= this.hungerMin
+    );
   }
 
   checkAllergyTolerance() {
@@ -186,7 +198,7 @@ class Level {
     this.foods.push(food);
   }
 
-  updateScore() {
+  updatePlayerStatus() {
     for (let food of this.foods) {
       if (food.isColliding(this.player)) {
         if (
@@ -201,6 +213,7 @@ class Level {
         }
       }
     }
+    this.player.decreaseHunger();
   }
 
   drawAllergicReaction() {
@@ -254,7 +267,7 @@ class Level {
     for (let i = 0; i < this.obstacleNum; i++) {
       const randFoodIdx = getRandomNumber(FOODS.length);
       const randInitialY = getRandomNumber(this.canvas.height - foodHeight);
-      const releaseTime = (this.duration / this.obstacleNum) * i; // to-do: add start as 2000 (2 seconds)
+      const releaseTime = (this.duration / this.obstacleNum) * i;
 
       const food = new Food({
         ...FOODS[randFoodIdx],
@@ -279,6 +292,7 @@ class Game {
     this.ctx = this.canvas.getContext("2d");
     this.levels = [];
     this.currentLevelIdx = 0;
+    this.score = 0;
     this.started = false;
     this.showLevelScreen = true;
     this.finished = false;
@@ -379,7 +393,7 @@ class Game {
     this.drawTitle("Game Finished");
   }
 
-  drawScore() {
+  drawPlayerStatus() {
     this.ctx.font = "24px serif";
     this.ctx.textAlign = "left";
     this.ctx.fillText(
@@ -441,8 +455,8 @@ const main = () => {
     } else {
       console.log(game.currentLevel.timeElapsed);
       game.ctx.clearRect(0, 0, game.canvas.width, game.canvas.height);
-      game.currentLevel.updateScore();
-      game.drawScore();
+      game.currentLevel.updatePlayerStatus();
+      game.drawPlayerStatus();
       game.currentLevel.drawAllActors();
       game.checkGameOver();
     }
