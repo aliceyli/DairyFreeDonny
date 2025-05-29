@@ -13,10 +13,13 @@ class Actor {
 
 // adds event listeners to player
 class Donny extends Actor {
+  static INITIAL_ALLERGY_TOLERANCE = 3;
+  static INITIAL_HUNGER_LEVEL = 5;
+
   constructor({ imgSrc, initialx, initialy, width, height, speed = 4 }) {
     super({ imgSrc, initialx, initialy, width, height, speed });
     this.allergyStartTime;
-    this.allergyDuration = 500;
+    this.allergyDuration = 700;
     this.allergicReactions = [
       "my tummy hurts",
       "I'm feeling itchy",
@@ -25,12 +28,14 @@ class Donny extends Actor {
     ];
     this.curAllergicReaction;
     this.hasUpdatedReaction = false;
-    this.allergyTolerance = 3;
-    this.hungerLevel = 5; // TO-DO: decrease hunger based on time
+    this.allergyTolerance = Donny.INITIAL_ALLERGY_TOLERANCE;
+    this.hungerLevel = Donny.INITIAL_HUNGER_LEVEL;
     this.hungerMin = 0;
     this.fullMax = 10;
-    this.hungerInterval = 3000;
+    this.hungerInterval = 2000;
     this.lastHungerDecrease = Date.now();
+    this.hungerReaction = "I'm hungry";
+    this.fullReaction = "I ate too much";
 
     this.keys = {};
 
@@ -47,6 +52,12 @@ class Donny extends Actor {
     addEventListener("keyup", (e) => {
       this.keys[e.key] = false;
     });
+  }
+
+  reset() {
+    this.allergyTolerance = Donny.INITIAL_ALLERGY_TOLERANCE;
+    this.hungerLevel = Donny.INITIAL_HUNGER_LEVEL;
+    this.lastHungerDecrease = Date.now();
   }
 
   update(canvas) {
@@ -94,10 +105,16 @@ class Donny extends Actor {
     }
   }
 
+  tooFull() {
+    return this.hungerLevel >= this.fullMax;
+  }
+
+  tooHungry() {
+    return this.hungerLevel <= this.hungerMin;
+  }
+
   checkHunger() {
-    return (
-      this.hungerLevel >= this.fullMax || this.hungerLevel <= this.hungerMin
-    );
+    return this.tooFull() || this.tooHungry();
   }
 
   checkAllergyTolerance() {
@@ -115,22 +132,27 @@ class Food extends Actor {
     width,
     height,
     speed = -2,
-    releaseTime = 0,
-    points = 1,
+    releaseTime,
     allergies = [],
   }) {
     super({ imgSrc, initialx, initialy, width, height, speed });
     this.releaseTime = releaseTime;
     this.collided = false;
-    this.points = points;
     this.allergies = allergies;
+
+    this.initialx = initialx;
+    this.initialy = initialy;
+  }
+
+  reset(y) {
+    this.x = this.initialx;
+    this.y = y;
+    this.collided = false;
   }
 
   update() {
     if (this.collided) {
-      // how do i destroy the objects or is it ok to just put them off screen?
-      this.x = -100;
-      this.y = -100;
+      this.reset();
     } else {
       this.x = this.x + this.speed;
       // this.draw();
@@ -173,13 +195,23 @@ class Food extends Actor {
 // keeps track of actors and level time
 // draws actors
 class Level {
-  constructor({ player, duration, obstacleNum, startTime, allergiesToAvoid }) {
+  constructor({
+    player,
+    duration = 40000,
+    obstacleNum,
+    startTime,
+    allergiesToAvoid,
+    releaseInterval,
+  }) {
     this.startTime = startTime;
     this.duration = duration;
     this.obstacleNum = obstacleNum;
+    this.releaseInterval = releaseInterval;
+    this.lastRelease;
     this.allergiesToAvoid = allergiesToAvoid;
     this.player = player;
     this.foods = [];
+    this.curFoodIdx = null;
 
     // passed from game
     this.canvas;
@@ -202,6 +234,11 @@ class Level {
     this.foods.push(food);
   }
 
+  startLevel() {
+    this.startTime = Date.now();
+    this.player.reset();
+  }
+
   updatePlayerStatus() {
     for (let food of this.foods) {
       if (food.isColliding(this.player)) {
@@ -213,7 +250,7 @@ class Level {
           this.player.allergyTolerance--;
           this.player.triggerAllergy();
         } else {
-          this.player.hungerLevel += food.points;
+          this.player.hungerLevel++;
         }
       }
     }
@@ -233,6 +270,30 @@ class Level {
     }
   }
 
+  drawHungerReaction() {
+    const drawReaction = (text) => {
+      this.ctx.font = "18px serif";
+      this.ctx.textAlign = "right";
+      this.ctx.fillText(text, this.player.x, this.player.y + 20); // +20 to go below the allergic reaction
+    };
+
+    if (this.player.hungerLevel < 3) {
+      drawReaction(this.player.hungerReaction);
+    }
+    if (this.player.hungerLevel > 7) {
+      drawReaction(this.player.fullReaction);
+    }
+  }
+
+  // TO-DO: this helper function should go somewhere else
+  get randY() {
+    const getRandomNumber = (n) => {
+      return Math.floor(Math.random() * n);
+    };
+
+    return getRandomNumber(this.canvas.height - 60 - 30); // 30 is bottom text and 60 is food height
+  }
+
   drawAllActors() {
     this.player.update(this.canvas);
     this.ctx.drawImage(
@@ -244,34 +305,53 @@ class Level {
     );
 
     this.drawAllergicReaction();
+    this.drawHungerReaction();
+
+    this.releaseNextFood();
 
     for (let food of this.foods) {
-      if (this.timeElapsed > food.releaseTime) {
+      if (food.releaseTime && this.timeElapsed > food.releaseTime) {
         food.update();
         this.ctx.drawImage(food.img, food.x, food.y, food.width, food.height);
+      }
+      if (food.x < food.width * -1) {
+        // if food is offscreen, reset with random y
+        // TO-DO: releaseNextFood() with this seems awkward. refactor...
+        food.reset(this.randY);
       }
     }
   }
 
   generateFood() {
+    // hack to repeat foods for earlier levels
+    // TO-DO: fix this list to be unique
+    // and control which foods appear on which level
     const FOODS = [
       { imgSrc: "images/apple.png" },
+      { imgSrc: "images/chicken.png" },
       { imgSrc: "images/milk.png", allergies: ["dairy"] },
       { imgSrc: "images/egg.png" },
       { imgSrc: "images/pizza.png", allergies: ["dairy", "gluten"] },
+      { imgSrc: "images/apple.png" },
+      { imgSrc: "images/chicken.png" },
+      { imgSrc: "images/milk.png", allergies: ["dairy"] },
+      { imgSrc: "images/egg.png" },
+      { imgSrc: "images/pizza.png", allergies: ["dairy", "gluten"] },
+      { imgSrc: "images/banana.png" },
+      { imgSrc: "images/frenchfries.png" },
+      { imgSrc: "images/hotdog.png", allergies: ["gluten"] },
+      { imgSrc: "images/watermelon.png" },
+      { imgSrc: "images/bread.png", allergies: ["gluten"] },
+      { imgSrc: "images/strawberry.png" },
+      { imgSrc: "images/peanutbutter.png", allergies: ["nut"] },
     ];
 
     const foodWidth = 50;
     const foodHeight = 60;
 
-    const getRandomNumber = (n) => {
-      return Math.floor(Math.random() * n);
-    };
-
     for (let i = 0; i < this.obstacleNum; i++) {
-      const randFoodIdx = getRandomNumber(FOODS.length);
-      const randInitialY = getRandomNumber(this.canvas.height - foodHeight);
-      const releaseTime = (this.duration / this.obstacleNum) * i;
+      const randFoodIdx = i % FOODS.length;
+      const randInitialY = this.randY;
 
       const food = new Food({
         ...FOODS[randFoodIdx],
@@ -279,10 +359,32 @@ class Level {
         initialy: randInitialY,
         width: foodWidth,
         height: foodHeight,
-        releaseTime: releaseTime,
       });
 
       this.addFood(food);
+    }
+  }
+
+  get nextFood() {
+    if ((this.curFoodIdx === null) & (this.foods.length > 0)) {
+      this.curFoodIdx = 0;
+    } else if (this.curFoodIdx === this.foods.length - 1) {
+      // cycle back if foods run out
+      this.curFoodIdx = 0;
+    } else {
+      this.curFoodIdx++;
+    }
+    return this.foods[this.curFoodIdx];
+  }
+
+  releaseNextFood() {
+    // TO-DO: this cycle behavior is a bit weird. come back to this
+    if (
+      Date.now() - this.lastRelease > this.releaseInterval ||
+      !this.lastRelease
+    ) {
+      this.nextFood.releaseTime = this.timeElapsed;
+      this.lastRelease = Date.now();
     }
   }
 }
@@ -309,7 +411,7 @@ class Game {
         this.showLevelScreen = false;
         // initialize level start time!
         if (this.levels[this.currentLevelIdx]) {
-          this.levels[this.currentLevelIdx].startTime = Date.now();
+          this.levels[this.currentLevelIdx].startLevel();
         }
       }
     });
@@ -336,6 +438,7 @@ class Game {
   updateScore() {
     if (this.currentLevel.inProgress) {
       this.score++;
+      // TO-DO: the score also updates when you eat the right foods?
     }
   }
 
@@ -370,43 +473,50 @@ class Game {
   }
 
   drawStartScreen() {
-    this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-
     this.drawTitle("Dairy Free Donny");
     this.drawCTA("Click to start");
   }
 
-  drawLevelScreen() {
-    this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-    const formatArray = (arr) => {
-      const copiedArr = arr.map((ele) => ele.toUpperCase());
-      if (copiedArr.length === 0) {
-        return "";
-      }
-      if (copiedArr.length === 1) {
-        return copiedArr[0];
-      }
-      const last = copiedArr.pop();
-      return copiedArr.join(", ") + " and " + last;
-    };
+  formatAllergies(arr) {
+    const copiedArr = arr.map((ele) => ele.toUpperCase());
+    if (copiedArr.length === 0) {
+      return "";
+    }
+    if (copiedArr.length === 1) {
+      return copiedArr[0];
+    }
+    const last = copiedArr.pop();
+    return copiedArr.join(", ") + " and " + last;
+  }
 
-    const allergyString = formatArray(this.currentLevel.allergiesToAvoid);
+  drawLevelScreen() {
+    const allergyString = this.formatAllergies(
+      this.currentLevel.allergiesToAvoid
+    );
     this.drawTitle(`Level ${this.currentLevelIdx + 1}`);
     this.drawSubtitle(`Donny can't eat ${allergyString}`);
     this.drawCTA("Click to continue");
   }
 
   drawGameOverScreen() {
-    this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-    // title
+    const allergyString = this.formatAllergies(
+      this.currentLevel.allergiesToAvoid
+    );
+    let gameOverText = `You fed Donny too much ${allergyString}`;
+    if (this.player.tooHungry()) {
+      gameOverText = "Donny got too hungry";
+    }
+    if (this.player.tooFull()) {
+      gameOverText = "Donny ate too much";
+    }
+
     this.drawTitle("Game Over");
-    this.drawSubtitle("You fed Donny dairy");
+    this.drawSubtitle(gameOverText);
   }
 
   drawWinScreen() {
-    this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-    // title
-    this.drawTitle("Game Finished");
+    this.drawTitle("You Win!");
+    this.drawSubtitle(`Final Score: ${this.score}`);
   }
 
   drawPlayerStatus() {
@@ -439,24 +549,34 @@ const main = () => {
 
   const level1 = new Level({
     player,
-    duration: 20000,
-    obstacleNum: 20,
+    obstacleNum: 10,
     allergiesToAvoid: ["dairy"],
+    releaseInterval: 1000,
   });
   game.addLevel(level1);
   level1.generateFood();
 
   const level2 = new Level({
     player,
-    duration: 10000,
-    obstacleNum: 10,
+    obstacleNum: 15,
     allergiesToAvoid: ["dairy", "gluten"],
+    releaseInterval: 1000,
+  });
+  game.addLevel(level2);
+  level2.generateFood();
+
+  const level3 = new Level({
+    player,
+    obstacleNum: 17,
+    allergiesToAvoid: ["dairy", "gluten", "nuts"],
+    releaseInterval: 1000,
   });
   game.addLevel(level2);
   level2.generateFood();
 
   let myReq;
   function animate(t) {
+    game.ctx.clearRect(0, 0, game.canvas.width, game.canvas.height);
     if (!game.started) {
       game.drawStartScreen();
     } else if (game.gameOver) {
@@ -469,10 +589,6 @@ const main = () => {
       game.showLevelScreen = true;
       game.nextLevel();
     } else {
-      console.log(game.currentLevel.timeElapsed);
-
-      game.ctx.clearRect(0, 0, game.canvas.width, game.canvas.height);
-
       game.updateScore();
       game.drawScore();
       game.currentLevel.updatePlayerStatus();
