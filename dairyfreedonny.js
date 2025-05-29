@@ -171,7 +171,7 @@ class Food extends Actor {
 }
 
 // keeps track of actors and level time
-// draws actors and score
+// draws actors
 class Level {
   constructor({ player, duration, obstacleNum, startTime, allergiesToAvoid }) {
     this.startTime = startTime;
@@ -192,6 +192,10 @@ class Level {
 
   get completed() {
     return this.timeElapsed > this.duration + 8000;
+  }
+
+  get inProgress() {
+    return this.startTime && !this.completed;
   }
 
   addFood(food) {
@@ -329,6 +333,18 @@ class Game {
     }
   }
 
+  updateScore() {
+    if (this.currentLevel.inProgress) {
+      this.score++;
+    }
+  }
+
+  drawScore() {
+    this.ctx.font = "24px sans-serif";
+    this.ctx.textAlign = "left";
+    this.ctx.fillText(`Score: ${this.score}`, 10, 25);
+  }
+
   checkGameOver() {
     if (this.player.checkAllergyTolerance() || this.player.checkHunger()) {
       this.gameOver = true;
@@ -454,7 +470,11 @@ const main = () => {
       game.nextLevel();
     } else {
       console.log(game.currentLevel.timeElapsed);
+
       game.ctx.clearRect(0, 0, game.canvas.width, game.canvas.height);
+
+      game.updateScore();
+      game.drawScore();
       game.currentLevel.updatePlayerStatus();
       game.drawPlayerStatus();
       game.currentLevel.drawAllActors();
