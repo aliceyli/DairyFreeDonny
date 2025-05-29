@@ -15,6 +15,21 @@ class Actor {
 class Donny extends Actor {
   constructor({ imgSrc, initialx, initialy, width, height, speed = 4 }) {
     super({ imgSrc, initialx, initialy, width, height, speed });
+    this.allergyStartTime;
+    this.allergyDuration = 500;
+    this.allergicReactions = [
+      "my tummy hurts",
+      "I'm feeling itchy",
+      "I don't feel so good",
+      "whyyyy",
+    ];
+    this.curAllergicReaction;
+    this.hasUpdatedReaction = false;
+    this.allergyTolerance = 3;
+    this.hungerLevel = 5; // TO-DO: decrease hunger based on time
+    this.hungerMin = 0;
+    this.fullMax = 10;
+
     this.keys = {};
 
     // interesting behavior of keydown is that
@@ -45,6 +60,36 @@ class Donny extends Actor {
     if (this.keys["ArrowLeft"] && this.x > 0) {
       this.x -= this.speed;
     }
+  }
+
+  triggerAllergy() {
+    this.allergyStartTime = Date.now();
+    this.hasUpdatedReaction = false;
+  }
+
+  updateAllergicReaction() {
+    if (!this.hasUpdatedReaction && this.allergyStartTime !== null) {
+      this.curAllergicReaction =
+        this.allergicReactions[
+          Math.floor(Math.random() * this.allergicReactions.length)
+        ];
+      this.hasUpdatedReaction = true;
+    }
+  }
+
+  hasAllergicReaction() {
+    return (
+      Date.now() - this.allergyStartTime < this.allergyDuration &&
+      Date.now() - this.allergyStartTime >= 0
+    );
+  }
+
+  checkHunger() {
+    return this.hungerLevel > this.fullMax || this.hungerLevel < this.hungerMin;
+  }
+
+  checkAllergyTolerance() {
+    return this.allergyTolerance <= 0;
   }
 }
 
@@ -113,18 +158,16 @@ class Food extends Actor {
   // }
 }
 
-// keeps track of actors, score and time
+// keeps track of actors and level time
 // draws actors and score
 class Level {
   constructor({ player, duration, obstacleNum, startTime, allergiesToAvoid }) {
     this.startTime = startTime;
     this.duration = duration;
-    this.score = 0;
-    this.allergyTolerance = 3;
+    this.obstacleNum = obstacleNum;
     this.allergiesToAvoid = allergiesToAvoid;
     this.player = player;
     this.foods = [];
-    this.obstacleNum = obstacleNum;
 
     // passed from game
     this.canvas;
@@ -143,18 +186,6 @@ class Level {
     this.foods.push(food);
   }
 
-  drawScore() {
-    this.ctx.font = "24px serif";
-    this.ctx.textAlign = "left";
-    this.ctx.fillText(`Score: ${this.score}`, 10, this.canvas.height - 10);
-    this.ctx.textAlign = "right";
-    this.ctx.fillText(
-      `Allergy Tolerance: ${this.allergyTolerance}`,
-      this.canvas.width - 10,
-      this.canvas.height - 10
-    );
-  }
-
   updateScore() {
     for (let food of this.foods) {
       if (food.isColliding(this.player)) {
@@ -163,11 +194,25 @@ class Level {
             this.allergiesToAvoid.includes(allergy)
           )
         ) {
-          this.allergyTolerance--;
+          this.player.allergyTolerance--;
+          this.player.triggerAllergy();
         } else {
-          this.score += food.points;
+          this.player.hungerLevel += food.points;
         }
       }
+    }
+  }
+
+  drawAllergicReaction() {
+    if (this.player.hasAllergicReaction()) {
+      this.player.updateAllergicReaction();
+      this.ctx.font = "18px serif";
+      this.ctx.textAlign = "right";
+      this.ctx.fillText(
+        this.player.curAllergicReaction,
+        this.player.x,
+        this.player.y
+      );
     }
   }
 
@@ -180,6 +225,8 @@ class Level {
       this.player.width,
       this.player.height
     );
+
+    this.drawAllergicReaction();
 
     for (let food of this.foods) {
       if (this.timeElapsed > food.releaseTime) {
@@ -207,7 +254,7 @@ class Level {
     for (let i = 0; i < this.obstacleNum; i++) {
       const randFoodIdx = getRandomNumber(FOODS.length);
       const randInitialY = getRandomNumber(this.canvas.height - foodHeight);
-      const randReleaseTime = getRandomNumber(this.duration); // to-do: add start as 2000 (2 seconds)
+      const releaseTime = (this.duration / this.obstacleNum) * i; // to-do: add start as 2000 (2 seconds)
 
       const food = new Food({
         ...FOODS[randFoodIdx],
@@ -215,7 +262,7 @@ class Level {
         initialy: randInitialY,
         width: foodWidth,
         height: foodHeight,
-        releaseTime: randReleaseTime,
+        releaseTime: releaseTime,
       });
 
       this.addFood(food);
@@ -225,8 +272,10 @@ class Level {
 
 // create game and keeps track of levels
 class Game {
-  constructor(canvasId) {
+  constructor(canvasId, player) {
     this.canvas = document.getElementById(canvasId);
+    this.player = player;
+
     this.ctx = this.canvas.getContext("2d");
     this.levels = [];
     this.currentLevelIdx = 0;
@@ -267,7 +316,7 @@ class Game {
   }
 
   checkGameOver() {
-    if (this.levels[this.currentLevelIdx].allergyTolerance <= 0) {
+    if (this.player.checkAllergyTolerance() || this.player.checkHunger()) {
       this.gameOver = true;
     }
   }
@@ -300,12 +349,12 @@ class Game {
   drawLevelScreen() {
     this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
     const formatArray = (arr) => {
-      const copiedArr = [...arr];
-      if (arr.length === 0) {
+      const copiedArr = arr.map((ele) => ele.toUpperCase());
+      if (copiedArr.length === 0) {
         return "";
       }
-      if (arr.length === 1) {
-        return arr[0];
+      if (copiedArr.length === 1) {
+        return copiedArr[0];
       }
       const last = copiedArr.pop();
       return copiedArr.join(", ") + " and " + last;
@@ -329,18 +378,34 @@ class Game {
     // title
     this.drawTitle("Game Finished");
   }
+
+  drawScore() {
+    this.ctx.font = "24px serif";
+    this.ctx.textAlign = "left";
+    this.ctx.fillText(
+      `Hunger Level: ${this.player.hungerLevel}`,
+      10,
+      this.canvas.height - 10
+    );
+    this.ctx.textAlign = "right";
+    this.ctx.fillText(
+      `Allergy Tolerance: ${this.player.allergyTolerance}`,
+      this.canvas.width - 10,
+      this.canvas.height - 10
+    );
+  }
 }
 
 const main = () => {
-  const game = new Game("myCanvas");
-
   const player = new Donny({
     imgSrc: "images/donny.png",
     initialx: 50,
-    initialy: game.canvas.height / 2 - 40,
-    width: 70,
-    height: 80,
+    initialy: 200,
+    width: 60,
+    height: 70,
   });
+
+  const game = new Game("myCanvas", player);
 
   const level1 = new Level({
     player,
@@ -355,7 +420,7 @@ const main = () => {
     player,
     duration: 10000,
     obstacleNum: 10,
-    allergiesToAvoid: ["gluten"],
+    allergiesToAvoid: ["dairy", "gluten"],
   });
   game.addLevel(level2);
   level2.generateFood();
@@ -376,9 +441,9 @@ const main = () => {
     } else {
       console.log(game.currentLevel.timeElapsed);
       game.ctx.clearRect(0, 0, game.canvas.width, game.canvas.height);
-      game.currentLevel.drawScore();
-      game.currentLevel.drawAllActors();
       game.currentLevel.updateScore();
+      game.drawScore();
+      game.currentLevel.drawAllActors();
       game.checkGameOver();
     }
     myReq = requestAnimationFrame(animate);
