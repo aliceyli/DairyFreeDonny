@@ -429,7 +429,7 @@ class Game {
         if (this.levels[this.currentLevelIdx]) {
           this.levels[this.currentLevelIdx].startLevel();
         }
-      } else {
+      } else if (this.finished || this.gameOver) {
         this.reset();
       }
     });
@@ -507,23 +507,35 @@ class Game {
   drawTitle(text) {
     this.ctx.font = "48px sans-serif";
     this.ctx.textAlign = "center";
+    this.ctx.textBaseline = "alphabetic";
     this.ctx.fillText(text, this.canvas.width / 2, 150);
   }
 
   drawSubtitle(text) {
+    const drawMultilineText = (text, x, y, lineHeight) => {
+      const lines = text.split("\n");
+      for (let i = 0; i < lines.length; i++) {
+        this.ctx.fillText(lines[i], x, y + i * lineHeight);
+      }
+    };
     this.ctx.font = "24px sans-serif";
     this.ctx.textAlign = "center";
-    this.ctx.fillText(text, this.canvas.width / 2, 200);
+    this.ctx.textBaseline = "alphabetic";
+    drawMultilineText(text, this.canvas.width / 2, 190, 30);
   }
 
   drawCTA(text) {
     this.ctx.font = "18px sans-serif";
     this.ctx.textAlign = "center";
-    this.ctx.fillText(text, this.canvas.width / 2, 250);
+    this.ctx.textBaseline = "alphabetic";
+    this.ctx.fillText(text, this.canvas.width / 2, 300);
   }
 
   drawStartScreen() {
     this.drawTitle("Dairy Free Donny");
+    this.drawSubtitle(
+      `Donny has food allergies. Avoid foods with allergens and\nmake sure Donny doesn't eat too much or too little.`
+    );
     this.drawCTA("Click to start");
   }
 
@@ -561,7 +573,7 @@ class Game {
     }
 
     this.drawTitle("Game Over");
-    this.drawSubtitle(gameOverText);
+    this.drawSubtitle(gameOverText + `\nFinal Score: ${this.score}`);
     this.drawCTA("Click to replay");
   }
 
