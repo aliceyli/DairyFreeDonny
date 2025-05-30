@@ -353,6 +353,21 @@ class Level {
       bread: { imgSrc: "images/bread.png", allergies: ["gluten"] },
       strawberry: { imgSrc: "images/strawberry.png" },
       peanutbutter: { imgSrc: "images/peanutbutter.png", allergies: ["nut"] },
+      pistachios: { imgSrc: "images/pistachios.png", allergies: ["nut"] },
+      icecream: {
+        imgSrc: "images/icecream.png",
+        allergies: ["dairy", "gluten"],
+      },
+      cake: { imgSrc: "images/cake.png", allergies: ["dairy", "gluten"] },
+      carrot: { imgSrc: "images/carrot.png" },
+      steak: { imgSrc: "images/steak.png", allergies: ["red meat"] },
+      cheeseburger: {
+        imgSrc: "images/cheeseburger.png",
+        allergies: ["dairy", "gluten", "red meat"],
+      },
+      bacon: { imgSrc: "images/bacon.png", allergies: ["red meat"] },
+      sushi: { imgSrc: "images/sushi.png" },
+      avocado: { imgSrc: "images/avocado.png" },
     };
 
     const foodPoolPropsList = this.foodPool.map(
@@ -595,57 +610,131 @@ const main = () => {
 
   const game = new Game("myCanvas", player);
 
-  const level1 = new Level({
-    player,
-    foodPool: [
-      "apple",
-      "chicken",
-      "milk",
-      "egg",
-      "pizza",
-      "egg",
-      "chicken",
-      "pizza",
-    ],
-    allergiesToAvoid: ["dairy"],
-    releaseInterval: 1000,
-  });
-  game.addLevel(level1);
+  const allLevelProperties = [
+    // level 1 - less foods and allergens
+    {
+      foodPool: [
+        "apple",
+        "chicken",
+        "milk",
+        "egg",
+        "pizza",
+        "egg",
+        "apple",
+        "chicken",
+        "pizza",
+        "bread",
+        "steak",
+      ],
+      allergiesToAvoid: ["dairy"],
+      releaseInterval: 1000,
+    },
+    // level 2 - more foods and possibility of being too full
+    // bread becomes an allergen
+    {
+      foodPool: [
+        "egg",
+        "apple",
+        "frenchfries",
+        "milk",
+        "bread",
+        "steak",
+        "egg",
+        "pizza",
+        "banana",
+        "chicken",
+        "hotdog",
+        "frenchfries",
+        "banana",
+        "cheeseburger",
+      ],
+      allergiesToAvoid: ["dairy", "gluten"],
+      releaseInterval: 900,
+    },
+    // level 3 - most foods and possibility of being hungry
+    // new foods with previous allergies like icecream and cake
+    {
+      foodPool: [
+        "bread", // n
+        "carrot", // y
+        "milk", // n
+        "apple", // y
+        "chicken", // y
+        "milk", // n
+        "steak", // y
+        "pistachios", // n
+        "peanutbutter", // n
+        "egg", // y
+        "pizza", // n
+        "watermelon", // n
+        "icecream", // n
+        "bread", // n
+        "frenchfries", // y
+        "milk", // n
+        "carrot", // y
+        "cake", // n
+        "pizza", // n
+        "bread", // n
+        "strawberry", // y
+        "peanutbutter", // n
+        "banana", // y
+        "pistachios", // n
+      ],
+      allergiesToAvoid: ["dairy", "gluten", "nuts"],
+      releaseInterval: 800,
+    },
+    // level 4 - most foods - red meat
+    // steak becomes allergen
+    // can be too full and then too hungry
+    // new foods that are allergy free
+    {
+      foodPool: [
+        "chicken", // y
+        "watermelon", // y
+        "icecream", // n
+        "apple", // y
+        "cake", // n
+        "egg", // y
+        "avocado", // y
+        "frenchfries", // y
+        "carrot", // y
+        "sushi", // y
+        "milk", // n
+        "bacon", // n
+        "banana", // y
+        "steak", // n
+        "peanutbutter", // n
+        "strawberry", // y
+        "egg", // y
+        "bacon", // n
+        "pistachios", // n
+        "milk", // n
+        "strawberry", // y
+        "icecream", // n
+        "pizza", // n
+        "steak", // n
+        "sushi", // y
+        "cheeseburger", // n
+        "bread", // n
+        "peanutbutter", // n
+        "apple", // y
+        "cake", // n
+        "bacon", // n
+        "pistachios", // n
+        "avocado", // y
+        "pizza", // n
+        "cheeseburger", // n
+      ],
+      allergiesToAvoid: ["dairy", "gluten", "nuts", "red meat"],
+      releaseInterval: 600,
+    },
+  ];
 
-  const level2 = new Level({
-    player,
-    foodPool: [
-      "egg",
-      "apple",
-      "frenchfries",
-      "milk",
-      "bread",
-      "egg",
-      "pizza",
-      "banana",
-      "chicken",
-      "hotdog",
-    ],
-    allergiesToAvoid: ["dairy", "gluten"],
-    releaseInterval: 1000,
-  });
-  game.addLevel(level2);
-
-  const level3 = new Level({
-    player,
-    foodPool: [
-      "apple",
-      "chicken",
-      "milk",
-      "bread",
-      "egg",
-      "pizza",
-      "peanutbutter",
-    ],
-    allergiesToAvoid: ["dairy", "gluten", "nuts"],
-    releaseInterval: 1000,
-  });
-  game.addLevel(level2);
+  // generate levels
+  for (let levelProperties of allLevelProperties) {
+    const level = new Level({ player, ...levelProperties });
+    game.addLevel(level);
+  }
 
   let myReq;
   function animate(t) {
