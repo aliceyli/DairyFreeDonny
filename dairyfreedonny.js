@@ -1,3 +1,6 @@
+const MARGIN = 10;
+const SCORE_BAR_HEIGHT = 25;
+
 // keeps track of actor properties
 class Actor {
   constructor({ imgSrc, initialx, initialy, width, height, speed }) {
@@ -18,6 +21,7 @@ class Donny extends Actor {
 
   constructor({ imgSrc, initialx, initialy, width, height, speed = 4 }) {
     super({ imgSrc, initialx, initialy, width, height, speed });
+
     this.allergyStartTime;
     this.allergyDuration = 700;
     this.allergicReactions = [
@@ -29,6 +33,7 @@ class Donny extends Actor {
     this.curAllergicReaction;
     this.hasUpdatedReaction = false;
     this.allergyTolerance = Donny.INITIAL_ALLERGY_TOLERANCE;
+
     this.hungerLevel = Donny.INITIAL_HUNGER_LEVEL;
     this.hungerMin = 0;
     this.fullMax = 10;
@@ -61,10 +66,13 @@ class Donny extends Actor {
   }
 
   update(canvas) {
-    if (this.keys["ArrowDown"] && this.y < canvas.height - this.height) {
+    if (
+      this.keys["ArrowDown"] &&
+      this.y < canvas.height - this.height - MARGIN - SCORE_BAR_HEIGHT
+    ) {
       this.y += this.speed;
     }
-    if (this.keys["ArrowUp"] && this.y > 0) {
+    if (this.keys["ArrowUp"] && this.y > MARGIN + SCORE_BAR_HEIGHT) {
       this.y -= this.speed;
     }
     if (this.keys["ArrowRight"] && this.x < canvas.width - this.width) {
@@ -198,14 +206,14 @@ class Level {
   constructor({
     player,
     duration = 40000,
-    obstacleNum,
+    foodPool,
     startTime,
     allergiesToAvoid,
     releaseInterval,
   }) {
     this.startTime = startTime;
     this.duration = duration;
-    this.obstacleNum = obstacleNum;
+    this.foodPool = foodPool;
     this.releaseInterval = releaseInterval;
     this.lastRelease;
     this.allergiesToAvoid = allergiesToAvoid;
@@ -235,6 +243,7 @@ class Level {
   }
 
   startLevel() {
+    this.generateFood();
     this.startTime = Date.now();
     this.player.reset();
   }
@@ -285,13 +294,17 @@ class Level {
     }
   }
 
-  // TO-DO: this helper function should go somewhere else
-  get randY() {
-    const getRandomNumber = (n) => {
-      return Math.floor(Math.random() * n);
+  randFoodY(foodHeight) {
+    const getRandomNumber = (start, end) => {
+      return Math.floor(Math.random() * (end - start + 1) + start);
     };
 
-    return getRandomNumber(this.canvas.height - 60 - 30); // 30 is bottom text and 60 is food height
+    const topBottomMargin = MARGIN + SCORE_BAR_HEIGHT;
+
+    return getRandomNumber(
+      topBottomMargin,
+      this.canvas.height - 60 - topBottomMargin
+    ); // 60 is food height
   }
 
   drawAllActors() {
@@ -318,38 +331,33 @@ class Level {
   }
 
   generateFood() {
-    // hack to repeat foods for earlier levels
-    // TO-DO: fix this list to be unique
-    // and control which foods appear on which level
-    const FOODS = [
-      { imgSrc: "images/apple.png" },
-      { imgSrc: "images/chicken.png" },
-      { imgSrc: "images/milk.png", allergies: ["dairy"] },
-      { imgSrc: "images/egg.png" },
-      { imgSrc: "images/pizza.png", allergies: ["dairy", "gluten"] },
-      { imgSrc: "images/apple.png" },
-      { imgSrc: "images/chicken.png" },
-      { imgSrc: "images/milk.png", allergies: ["dairy"] },
-      { imgSrc: "images/egg.png" },
-      { imgSrc: "images/pizza.png", allergies: ["dairy", "gluten"] },
-      { imgSrc: "images/banana.png" },
-      { imgSrc: "images/frenchfries.png" },
-      { imgSrc: "images/hotdog.png", allergies: ["gluten"] },
-      { imgSrc: "images/watermelon.png" },
-      { imgSrc: "images/bread.png", allergies: ["gluten"] },
-      { imgSrc: "images/strawberry.png" },
-      { imgSrc: "images/peanutbutter.png", allergies: ["nut"] },
-    ];
+    const FOOD_PROPERTIES = {
+      apple: { imgSrc: "images/apple.png" },
+      chicken: { imgSrc: "images/chicken.png" },
+      milk: { imgSrc: "images/milk.png", allergies: ["dairy"] },
+      egg: { imgSrc: "images/egg.png" },
+      pizza: { imgSrc: "images/pizza.png", allergies: ["dairy", "gluten"] },
+      banana: { imgSrc: "images/banana.png" },
+      frenchfries: { imgSrc: "images/frenchfries.png" },
+      hotdog: { imgSrc: "images/hotdog.png", allergies: ["gluten"] },
+      watermelon: { imgSrc: "images/watermelon.png" },
+      bread: { imgSrc: "images/bread.png", allergies: ["gluten"] },
+      strawberry: { imgSrc: "images/strawberry.png" },
+      peanutbutter: { imgSrc: "images/peanutbutter.png", allergies: ["nut"] },
+    };
+
+    const foodPoolPropsList = this.foodPool.map(
+      (food) => FOOD_PROPERTIES[food]
+    );
 
     const foodWidth = 50;
     const foodHeight = 60;
 
-    for (let i = 0; i < this.obstacleNum; i++) {
-      const randFoodIdx = i % FOODS.length;
-      const randInitialY = this.randY;
+    for (let foodProps of foodPoolPropsList) {
+      const randInitialY = this.randFoodY(foodHeight);
 
       const food = new Food({
-        ...FOODS[randFoodIdx],
+        ...foodProps,
         initialx: this.canvas.width,
         initialy: randInitialY,
         width: foodWidth,
@@ -379,7 +387,7 @@ class Level {
     ) {
       const foodToRelease = this.nextFood;
       if (foodToRelease) {
-        foodToRelease.reset(this.randY);
+        foodToRelease.reset(this.randFoodY(foodToRelease.foodHeight));
         foodToRelease.releaseTime = this.timeElapsed;
         this.lastRelease = Date.now();
       }
@@ -437,13 +445,35 @@ class Game {
     if (this.currentLevel.inProgress) {
       this.score++;
       // TO-DO: the score also updates when you eat the right foods?
+      // also this probably updates based on frame rates which can differ
+      // so probably need to make this explicitly time based
     }
   }
 
   drawScore() {
     this.ctx.font = "24px sans-serif";
     this.ctx.textAlign = "left";
-    this.ctx.fillText(`Score: ${this.score}`, 10, 25);
+    this.ctx.textBaseline = "top";
+    this.ctx.fillText(`Score: ${this.score}`, MARGIN, MARGIN);
+  }
+
+  drawPlayerStatus() {
+    this.ctx.font = "24px serif";
+    this.ctx.textBaseline = "alphabetic";
+
+    this.ctx.textAlign = "left";
+    this.ctx.fillText(
+      `Hunger Level: ${this.player.hungerLevel}`,
+      MARGIN,
+      this.canvas.height - MARGIN
+    );
+
+    this.ctx.textAlign = "right";
+    this.ctx.fillText(
+      `Allergy Tolerance: ${this.player.allergyTolerance}`,
+      this.canvas.width - MARGIN,
+      this.canvas.height - MARGIN
+    );
   }
 
   checkGameOver() {
@@ -516,22 +546,6 @@ class Game {
     this.drawTitle("You Win!");
     this.drawSubtitle(`Final Score: ${this.score}`);
   }
-
-  drawPlayerStatus() {
-    this.ctx.font = "24px serif";
-    this.ctx.textAlign = "left";
-    this.ctx.fillText(
-      `Hunger Level: ${this.player.hungerLevel}`,
-      10,
-      this.canvas.height - 10
-    );
-    this.ctx.textAlign = "right";
-    this.ctx.fillText(
-      `Allergy Tolerance: ${this.player.allergyTolerance}`,
-      this.canvas.width - 10,
-      this.canvas.height - 10
-    );
-  }
 }
 
 const main = () => {
@@ -547,30 +561,55 @@ const main = () => {
 
   const level1 = new Level({
     player,
-    obstacleNum: 10,
+    foodPool: [
+      "apple",
+      "chicken",
+      "milk",
+      "egg",
+      "pizza",
+      "egg",
+      "chicken",
+      "pizza",
+    ],
     allergiesToAvoid: ["dairy"],
     releaseInterval: 1000,
   });
   game.addLevel(level1);
-  level1.generateFood();
 
   const level2 = new Level({
     player,
-    obstacleNum: 15,
+    foodPool: [
+      "egg",
+      "apple",
+      "frenchfries",
+      "milk",
+      "bread",
+      "egg",
+      "pizza",
+      "banana",
+      "chicken",
+      "hotdog",
+    ],
     allergiesToAvoid: ["dairy", "gluten"],
     releaseInterval: 1000,
   });
   game.addLevel(level2);
-  level2.generateFood();
 
   const level3 = new Level({
     player,
-    obstacleNum: 17,
+    foodPool: [
+      "apple",
+      "chicken",
+      "milk",
+      "bread",
+      "egg",
+      "pizza",
+      "peanutbutter",
+    ],
     allergiesToAvoid: ["dairy", "gluten", "nuts"],
     releaseInterval: 1000,
   });
   game.addLevel(level2);
-  level2.generateFood();
 
   let myReq;
   function animate(t) {
