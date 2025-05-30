@@ -314,11 +314,6 @@ class Level {
         food.update();
         this.ctx.drawImage(food.img, food.x, food.y, food.width, food.height);
       }
-      if (food.x < food.width * -1) {
-        // if food is offscreen, reset with random y
-        // TO-DO: releaseNextFood() with this seems awkward. refactor...
-        food.reset(this.randY);
-      }
     }
   }
 
@@ -369,7 +364,7 @@ class Level {
     if ((this.curFoodIdx === null) & (this.foods.length > 0)) {
       this.curFoodIdx = 0;
     } else if (this.curFoodIdx === this.foods.length - 1) {
-      // cycle back if foods run out
+      //cycle back if foods run out
       this.curFoodIdx = 0;
     } else {
       this.curFoodIdx++;
@@ -378,13 +373,16 @@ class Level {
   }
 
   releaseNextFood() {
-    // TO-DO: this cycle behavior is a bit weird. come back to this
     if (
       Date.now() - this.lastRelease > this.releaseInterval ||
       !this.lastRelease
     ) {
-      this.nextFood.releaseTime = this.timeElapsed;
-      this.lastRelease = Date.now();
+      const foodToRelease = this.nextFood;
+      if (foodToRelease) {
+        foodToRelease.reset(this.randY);
+        foodToRelease.releaseTime = this.timeElapsed;
+        this.lastRelease = Date.now();
+      }
     }
   }
 }
