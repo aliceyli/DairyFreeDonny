@@ -42,6 +42,9 @@ class Donny extends Actor {
     this.hungerReaction = "I'm hungry";
     this.fullReaction = "I ate too much";
 
+    this.initialx = initialx;
+    this.initialy = initialy;
+
     this.keys = {};
 
     // interesting behavior of keydown is that
@@ -63,6 +66,8 @@ class Donny extends Actor {
     this.allergyTolerance = Donny.INITIAL_ALLERGY_TOLERANCE;
     this.hungerLevel = Donny.INITIAL_HUNGER_LEVEL;
     this.lastHungerDecrease = Date.now();
+    this.x = this.initialx;
+    this.y = this.initialy;
   }
 
   update(canvas) {
@@ -149,7 +154,6 @@ class Food extends Actor {
     this.allergies = allergies;
 
     this.initialx = initialx;
-    this.initialy = initialy;
   }
 
   reset(y) {
@@ -163,7 +167,6 @@ class Food extends Actor {
       this.reset();
     } else {
       this.x = this.x + this.speed;
-      // this.draw();
     }
   }
 
@@ -207,15 +210,14 @@ class Level {
     player,
     duration = 40000,
     foodPool,
-    startTime,
     allergiesToAvoid,
     releaseInterval,
   }) {
-    this.startTime = startTime;
+    this.startTime = null;
     this.duration = duration;
     this.foodPool = foodPool;
     this.releaseInterval = releaseInterval;
-    this.lastRelease;
+    this.lastRelease = null;
     this.allergiesToAvoid = allergiesToAvoid;
     this.player = player;
     this.foods = [];
@@ -231,7 +233,7 @@ class Level {
   }
 
   get completed() {
-    return this.timeElapsed > this.duration + 8000;
+    return this.timeElapsed > this.duration;
   }
 
   get inProgress() {
@@ -243,9 +245,16 @@ class Level {
   }
 
   startLevel() {
-    this.generateFood();
-    this.startTime = Date.now();
+    if (this.startTime) {
+      this.lastRelease = null;
+      this.curFoodIdx = null;
+      this.foods.map((food) => food.reset());
+    } else {
+      this.generateFood();
+    }
+
     this.player.reset();
+    this.startTime = Date.now();
   }
 
   updatePlayerStatus() {
@@ -406,25 +415,38 @@ class Game {
     this.currentLevelIdx = 0;
     this.score = 0;
     this.started = false;
-    this.showLevelScreen = true;
+    this.showLevelScreen = false;
     this.finished = false;
     this.gameOver = false;
 
     this.canvas.addEventListener("click", (event) => {
       if (!this.started) {
         this.started = true;
+        this.showLevelScreen = true;
       } else if (this.showLevelScreen) {
         this.showLevelScreen = false;
-        // initialize level start time!
+
         if (this.levels[this.currentLevelIdx]) {
           this.levels[this.currentLevelIdx].startLevel();
         }
+      } else {
+        this.reset();
       }
     });
   }
 
   get currentLevel() {
     return this.levels[this.currentLevelIdx];
+  }
+
+  reset() {
+    this.player.reset();
+    this.currentLevelIdx = 0;
+    this.score = 0;
+    this.started = false;
+    this.showLevelScreen = false;
+    this.finished = false;
+    this.gameOver = false;
   }
 
   addLevel(level) {
@@ -540,11 +562,13 @@ class Game {
 
     this.drawTitle("Game Over");
     this.drawSubtitle(gameOverText);
+    this.drawCTA("Click to replay");
   }
 
   drawWinScreen() {
-    this.drawTitle("You Win!");
+    this.drawTitle("You Win! Donny is satisfied");
     this.drawSubtitle(`Final Score: ${this.score}`);
+    this.drawCTA("Click to replay");
   }
 }
 
