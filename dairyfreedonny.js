@@ -295,10 +295,10 @@ class Level {
       this.ctx.fillText(text, this.player.x, this.player.y + 20); // +20 to go below the allergic reaction
     };
 
-    if (this.player.hungerLevel < 3) {
+    if (this.player.hungerLevel <= 2) {
       drawReaction(this.player.hungerReaction);
     }
-    if (this.player.hungerLevel > 7) {
+    if (this.player.hungerLevel >= 8) {
       drawReaction(this.player.fullReaction);
     }
   }
@@ -433,6 +433,7 @@ class Game {
     this.showLevelScreen = false;
     this.finished = false;
     this.gameOver = false;
+    this.reqID = -1;
 
     this.canvas.addEventListener("click", (event) => {
       if (!this.started) {
@@ -498,11 +499,39 @@ class Game {
     this.ctx.font = "24px serif";
     this.ctx.textBaseline = "alphabetic";
 
+    const { hungerLevel } = this.player;
+
+    const w = 250;
+    const cellW = w / this.player.fullMax;
+    const curBarW = cellW * hungerLevel;
+    const h = 10;
+
+    this.ctx.save();
+    const padding = 1;
+    this.ctx.strokeStyle = "black";
+    this.ctx.strokeRect(
+      MARGIN - padding,
+      this.canvas.height - MARGIN - h - padding,
+      w + padding * 2,
+      h + padding * 2
+    );
+
+    let blink = false;
+    if (hungerLevel <= 1 || hungerLevel >= 9) {
+      blink = Math.floor(this.reqID / 10) % 2 === 0;
+    } else if (hungerLevel <= 2 || hungerLevel >= 8) {
+      blink = Math.floor(this.reqID / 20) % 2 === 0;
+    }
+
+    this.ctx.fillStyle = blink ? "transparent" : "black";
+    this.ctx.fillRect(MARGIN, this.canvas.height - MARGIN - h, curBarW, h);
+    this.ctx.restore();
+
     this.ctx.textAlign = "left";
     this.ctx.fillText(
       `Hunger Level: ${this.player.hungerLevel}`,
       MARGIN,
-      this.canvas.height - MARGIN
+      this.canvas.height - MARGIN - h
     );
 
     this.ctx.textAlign = "right";
@@ -736,7 +765,6 @@ const main = () => {
     game.addLevel(level);
   }
 
-  let myReq;
   function animate(t) {
     game.ctx.clearRect(0, 0, game.canvas.width, game.canvas.height);
     if (!game.started) {
@@ -758,10 +786,10 @@ const main = () => {
       game.currentLevel.drawAllActors();
       game.checkGameOver();
     }
-    myReq = requestAnimationFrame(animate);
+    game.reqID = requestAnimationFrame(animate);
   }
 
-  myReq = requestAnimationFrame(animate);
+  game.reqID = requestAnimationFrame(animate);
   // cancelAnimationFrame(myReq);
 };
 
